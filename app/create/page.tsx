@@ -1,0 +1,116 @@
+'use client'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import PageTransition from '../components/PageTransition'
+import { supabase } from '../lib/supabase'
+
+const rooms = [
+  { id: 'games', label: '🎮 Ігри', subs: ['Dota 2', 'CS2', 'Valorant', 'FIFA', 'Minecraft'] },
+  { id: 'films', label: '🎬 Фільми', subs: ['Бойовики', 'Драми', 'Жахи', 'Комедії', 'Аніме'] },
+  { id: 'music', label: '🎵 Музика', subs: ['Українська', 'Rock', 'Hip-Hop', 'Electronic', 'Pop'] },
+  { id: 'sport', label: '⚽ Спорт', subs: ['Футбол', 'Бокс', 'Баскетбол', 'Теніс', 'UFC'] },
+  { id: 'tech', label: '💻 Технології', subs: ['AI', 'Стартапи', 'Гаджети', 'Програмування', 'Крипто'] },
+]
+
+export default function CreatePage() {
+  const router = useRouter()
+  const [text, setText] = useState('')
+  const [selectedRoom, setSelectedRoom] = useState('')
+  const [selectedSub, setSelectedSub] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) setUserId(session.user.id)
+    })
+  }, [])
+
+  const currentRoom = rooms.find(r => r.id === selectedRoom)
+  const canPost = text.trim().length > 0 && selectedRoom !== '' && selectedSub !== ''
+
+  const handlePost = async () => {
+    if (!canPost || !userId) return
+    setLoading(true)
+
+    const { error } = await supabase.from('posts').insert({
+      user_id: userId,
+      text: text.trim(),
+      room: selectedRoom,
+      sub: selectedSub,
+    })
+
+    if (!error) {
+      router.push('/')
+    } else {
+      alert('Помилка: ' + JSON.stringify(error))
+    }
+    setLoading(false)
+  }
+
+  return (
+    <PageTransition>
+      <main>
+        <div style={{
+          position:'fixed', top:0, left:0, right:0, zIndex:100,
+          background:'var(--bg)', borderBottom:'1px solid var(--border)',
+          display:'flex', alignItems:'center', justifyContent:'space-between',
+          padding:'14px 16px'
+        }}>
+          <button onClick={() => router.back()} style={{background:'none', border:'none', color:'var(--text)', fontSize:'20px', cursor:'pointer'}}>✕</button>
+          <span style={{fontWeight:600, fontSize:'16px', color:'var(--text)'}}>Новий пост</span>
+          <button onClick={handlePost} style={{
+            background: canPost ? 'var(--accent)' : 'var(--bg3)',
+            border:'none', borderRadius:'999px', padding:'8px 18px',
+            color: canPost ? '#fff' : 'var(--text3)',
+            fontSize:'14px', fontWeight:600, cursor:'pointer', transition:'all 0.2s'
+          }}>{loading ? '...' : 'Опублікувати'}</button>
+        </div>
+
+        <div style={{maxWidth:'580px', margin:'0 auto', padding:'70px 16px 90px'}}>
+          <div style={{display:'flex', gap:'12px', marginBottom:'24px'}}>
+            <div style={{width:'42px', height:'42px', borderRadius:'50%', flexShrink:0,
+              background:'linear-gradient(135deg, #7c3aed, #ec4899)'}}/>
+            <textarea value={text} onChange={e => setText(e.target.value)}
+              placeholder="Що хочеш сказати?" maxLength={500}
+              style={{flex:1, background:'none', border:'none', color:'var(--text)',
+                fontSize:'16px', lineHeight:'1.6', resize:'none',
+                outline:'none', minHeight:'120px', fontFamily:'inherit'}}
+            />
+          </div>
+          <div style={{textAlign:'right', color:'var(--text3)', fontSize:'12px', marginBottom:'24px'}}>{text.length}/500</div>
+
+          <p style={{fontSize:'13px', color:'var(--text3)', marginBottom:'10px'}}>Оберіть комнату</p>
+          <div style={{display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'20px'}}>
+            {rooms.map(room => (
+              <button key={room.id} onClick={() => { setSelectedRoom(room.id); setSelectedSub('') }} style={{
+                padding:'8px 14px', borderRadius:'999px', fontSize:'13px', cursor:'pointer',
+                background: selectedRoom === room.id ? 'var(--accent)' : 'var(--bg3)',
+                color: selectedRoom === room.id ? '#fff' : 'var(--text2)',
+                border: selectedRoom === room.id ? '1px solid var(--accent)' : '1px solid var(--border)',
+                transition:'all 0.2s'
+              }}>{room.label}</button>
+            ))}
+          </div>
+
+          {currentRoom && (
+            <>
+              <p style={{fontSize:'13px', color:'var(--text3)', marginBottom:'10px'}}>Оберіть тему</p>
+              <div style={{display:'flex', gap:'8px', flexWrap:'wrap'}}>
+                {currentRoom.subs.map(sub => (
+                  <button key={sub} onClick={() => setSelectedSub(sub)} style={{
+                    padding:'8px 14px', borderRadius:'999px', fontSize:'13px', cursor:'pointer',
+                    background: selectedSub === sub ? '#ffffff15' : 'none',
+                    color: selectedSub === sub ? 'var(--text)' : 'var(--text3)',
+                    border: selectedSub === sub ? '1px solid #444' : '1px solid var(--border)',
+                    transition:'all 0.2s'
+                  }}>{sub}</button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </main>
+    </PageTransition>
+  )
+}
