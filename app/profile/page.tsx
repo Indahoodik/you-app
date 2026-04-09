@@ -1,20 +1,66 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from '../context/ThemeContext'
 import PageTransition from '../components/PageTransition'
-
-const myPosts = [
-  { text: 'Новий патч 7.38 — керлі стак тепер не той 😭', likes: 42, comments: 15, sub: 'Dota 2' },
-  { text: 'Хто збирається на LAN турнір у Києві? 👇', likes: 31, comments: 44, sub: 'CS2' },
-  { text: 'Топ 5 ігор цього року на мою думку 😄', likes: 56, comments: 19, sub: 'Valorant' },
-]
+import { supabase } from '../lib/supabase'
 
 export default function ProfilePage() {
   const router = useRouter()
   const { theme, toggleTheme } = useTheme()
   const [activeTab, setActiveTab] = useState('posts')
   const [showSettings, setShowSettings] = useState(false)
+  const [profile, setProfile] = useState<any>(null)
+  const [posts, setPosts] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchProfile()
+  }, [])
+
+  const fetchProfile = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single()
+
+    setProfile(profileData)
+
+    const { data: postsData } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .order('created_at', { ascending: false })
+
+    setPosts(postsData || [])
+    setLoading(false)
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    router.push('/auth')
+  }
+
+  const timeAgo = (date: string) => {
+    const diff = Date.now() - new Date(date + 'Z').getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return 'щойно'
+    if (mins < 60) return `${mins}хв тому`
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return `${hours}год тому`
+    return `${Math.floor(hours / 24)}д тому`
+  }
+
+  if (loading) return (
+    <div style={{display:'flex', justifyContent:'center', alignItems:'center', minHeight:'100vh', background:'var(--bg)'}}>
+      <div style={{width:'32px', height:'32px', borderRadius:'50%', border:'3px solid #222', borderTop:'3px solid #7c3aed', animation:'spin 0.8s linear infinite'}}/>
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+    </div>
+  )
 
   return (
     <PageTransition>
@@ -56,7 +102,7 @@ export default function ProfilePage() {
               </div>
             </div>
             <div style={{height:'1px', background:'var(--border)', margin:'4px 0'}}/>
-            <button style={{
+            <button onClick={handleLogout} style={{
               width:'100%', padding:'12px 14px', borderRadius:'10px',
               background:'none', border:'none', color:'#ef4444',
               fontSize:'14px', cursor:'pointer', textAlign:'left',
@@ -73,17 +119,27 @@ export default function ProfilePage() {
           <div className="animate-fade-up" style={{display:'flex', alignItems:'center', gap:'16px', marginBottom:'20px'}}>
             <div style={{
               width:'72px', height:'72px', borderRadius:'50%', flexShrink:0,
-              background:'linear-gradient(135deg, #7c3aed, #ec4899)'
-            }}/>
+              background:'linear-gradient(135deg, #7c3aed, #ec4899)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:'28px', fontWeight:700, color:'#fff'
+            }}>
+              {profile?.username?.[0]?.toUpperCase() || '?'}
+            </div>
             <div>
-              <p style={{fontSize:'20px', fontWeight:700, color:'var(--text)'}}>alex_ua</p>
-              <p style={{fontSize:'14px', color:'var(--text3)', marginTop:'2px'}}>🇺🇦 Київ</p>
+              <p style={{fontSize:'20px', fontWeight:700, color:'var(--text)'}}>
+                {profile?.username || 'user'}
+              </p>
+              <p style={{fontSize:'14px', color:'var(--text3)', marginTop:'2px'}}>
+                {profile?.city ? `🇺🇦 ${profile.city}` : '🇺🇦 Україна'}
+              </p>
             </div>
           </div>
 
-          <p className="animate-fade-up delay-1" style={{fontSize:'14px', color:'var(--text2)', lineHeight:'1.5', marginBottom:'20px'}}>
-            Геймер, розробник, люблю каву ☕ і Dota 2 🎮
-          </p>
+          {profile?.bio && (
+            <p style={{fontSize:'14px', color:'var(--text2)', lineHeight:'1.5', marginBottom:'20px'}}>
+              {profile.bio}
+            </p>
+          )}
 
           <div className="animate-fade-up delay-2" style={{
             display:'grid', gridTemplateColumns:'1fr 1fr 1fr',
@@ -91,9 +147,9 @@ export default function ProfilePage() {
             overflow:'hidden', marginBottom:'20px'
           }}>
             {[
-              { label: 'Пости', value: '24' },
-              { label: 'Підписники', value: '1.2K' },
-              { label: 'Підписки', value: '348' },
+              { label: 'Пости', value: posts.length },
+              { label: 'Підписники', value: '0' },
+              { label: 'Підписки', value: '0' },
             ].map(stat => (
               <div key={stat.label} style={{background:'var(--bg2)', padding:'14px', textAlign:'center'}}>
                 <p style={{fontSize:'18px', fontWeight:700, color:'var(--text)'}}>{stat.value}</p>
@@ -123,17 +179,27 @@ export default function ProfilePage() {
             ))}
           </div>
 
-          {myPosts.map((post, i) => (
-            <div key={i} className={`post animate-fade-up delay-${i+1}`} style={{cursor:'pointer'}} onClick={() => router.push('/post')}>
+          {posts.length === 0 ? (
+            <div style={{textAlign:'center', color:'var(--text3)', marginTop:'40px'}}>
+              <p style={{fontSize:'32px', marginBottom:'12px'}}>✍️</p>
+              <p style={{fontSize:'14px'}}>Ще немає постів</p>
+            </div>
+          ) : posts.map((post, i) => (
+            <div key={post.id} className={`post animate-fade-up delay-${i+1}`}
+              style={{cursor:'pointer'}} onClick={() => router.push(`/post/${post.id}`)}>
               <div className="post-header">
                 <div style={{
                   width:'38px', height:'38px', borderRadius:'50%', flexShrink:0,
-                  background:'linear-gradient(135deg, #7c3aed, #ec4899)'
-                }}/>
+                  background:'linear-gradient(135deg, #7c3aed, #ec4899)',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  fontSize:'16px', fontWeight:700, color:'#fff'
+                }}>
+                  {profile?.username?.[0]?.toUpperCase() || '?'}
+                </div>
                 <div>
-                  <p className="username">alex_ua</p>
+                  <p className="username">{profile?.username || 'user'}</p>
                   <div style={{display:'flex', alignItems:'center', gap:'6px'}}>
-                    <p className="time">вчора</p>
+                    <p className="time">{timeAgo(post.created_at)}</p>
                     <span style={{color:'var(--text3)', fontSize:'11px'}}>·</span>
                     <span style={{fontSize:'11px', color:'var(--accent)'}}>{post.sub}</span>
                   </div>
@@ -142,7 +208,7 @@ export default function ProfilePage() {
               <p className="post-text">{post.text}</p>
               <div className="post-actions">
                 <button className="action-btn" onClick={e => e.stopPropagation()}>❤️ {post.likes}</button>
-                <button className="action-btn" onClick={e => e.stopPropagation()}>💬 {post.comments}</button>
+                <button className="action-btn" onClick={e => e.stopPropagation()}>💬 {post.comments_count || 0}</button>
                 <button className="action-btn" onClick={e => e.stopPropagation()}>🔁 Поділитись</button>
               </div>
             </div>

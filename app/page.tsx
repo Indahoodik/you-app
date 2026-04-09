@@ -36,8 +36,8 @@ export default function Home() {
   }, [activeRoom, activeSub])
 
   useEffect(() => {
-    if (userId && posts.length > 0) fetchLikes()
-  }, [userId, posts.length])
+    if (userId) fetchLikes()
+  }, [userId, activeRoom])
 
   const fetchPosts = async () => {
     setLoading(true)
@@ -59,7 +59,7 @@ export default function Home() {
       .from('likes')
       .select('post_id')
       .eq('user_id', userId)
-    if (data) setLikedPosts(new Set(data.map(l => l.post_id)))
+    if (data) setLikedPosts(new Set(data.map((l: any) => l.post_id)))
   }
 
   const handleLike = async (e: React.MouseEvent, post: any) => {
