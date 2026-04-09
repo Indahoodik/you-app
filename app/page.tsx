@@ -37,7 +37,7 @@ export default function Home() {
 
   useEffect(() => {
     if (userId) fetchLikes()
-  }, [userId, activeRoom])
+  }, [userId])
 
   const fetchPosts = async () => {
     setLoading(true)
@@ -55,6 +55,7 @@ export default function Home() {
   }
 
   const fetchLikes = async () => {
+    if (!userId) return
     const { data } = await supabase
       .from('likes')
       .select('post_id')

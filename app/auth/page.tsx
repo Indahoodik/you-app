@@ -12,27 +12,48 @@ export default function AuthPage() {
   const [city, setCity] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   const handleSubmit = async () => {
     setLoading(true)
     setError('')
+    setSuccess('')
 
     if (isLogin) {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) { setError(error.message); setLoading(false); return }
+      if (error) { setError('Невірний email або пароль'); setLoading(false); return }
       router.push('/')
     } else {
-      const { data, error } = await supabase.auth.signUp({ email, password })
+      if (!username.trim()) { setError('Введіть нікнейм'); setLoading(false); return }
+      if (username.length < 3) { setError('Нікнейм мінімум 3 символи'); setLoading(false); return }
+
+      const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', username.trim())
+        .single()
+
+      if (existingUser) { setError('Цей нікнейм вже зайнятий'); setLoading(false); return }
+
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { username: username.trim(), city: city.trim() }
+        }
+      })
+
       if (error) { setError(error.message); setLoading(false); return }
 
       if (data.user) {
-        await supabase.from('profiles').insert({
+        await supabase.from('profiles').upsert({
           id: data.user.id,
-          username,
-          city,
+          username: username.trim(),
+          city: city.trim(),
         })
       }
-      router.push('/')
+
+      setSuccess('✅ Лист відправлено! Перевір пошту і підтвердь email.')
     }
     setLoading(false)
   }
@@ -44,7 +65,6 @@ export default function AuthPage() {
       padding:'20px'
     }}>
       <div style={{width:'100%', maxWidth:'400px'}}>
-
         <div style={{textAlign:'center', marginBottom:'40px'}}>
           <h1 style={{
             fontSize:'48px', fontWeight:800, letterSpacing:'-2px',
@@ -62,7 +82,7 @@ export default function AuthPage() {
         }}>
           <div style={{display:'flex', marginBottom:'24px', background:'var(--bg3)', borderRadius:'12px', padding:'4px'}}>
             {['Увійти', 'Реєстрація'].map((tab, i) => (
-              <button key={tab} onClick={() => { setIsLogin(i === 0); setError('') }} style={{
+              <button key={tab} onClick={() => { setIsLogin(i === 0); setError(''); setSuccess('') }} style={{
                 flex:1, padding:'10px', borderRadius:'10px', border:'none', cursor:'pointer',
                 background: isLogin === (i === 0) ? 'var(--accent)' : 'none',
                 color: isLogin === (i === 0) ? '#fff' : 'var(--text3)',
@@ -76,7 +96,7 @@ export default function AuthPage() {
               <input
                 value={username}
                 onChange={e => setUsername(e.target.value)}
-                placeholder="Нікнейм (наприклад: kyiv_gamer)"
+                placeholder="Нікнейм (мін. 3 символи)"
                 style={{
                   padding:'12px 16px', borderRadius:'12px',
                   background:'var(--bg3)', border:'1px solid var(--border)',
@@ -122,9 +142,8 @@ export default function AuthPage() {
               />
             )}
 
-            {error && (
-              <p style={{color:'#ef4444', fontSize:'13px', textAlign:'center'}}>{error}</p>
-            )}
+            {error && <p style={{color:'#ef4444', fontSize:'13px', textAlign:'center'}}>{error}</p>}
+            {success && <p style={{color:'#10b981', fontSize:'13px', textAlign:'center'}}>{success}</p>}
 
             <button
               onClick={handleSubmit}
