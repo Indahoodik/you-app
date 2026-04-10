@@ -12,7 +12,11 @@ export default function ProfilePage() {
   const [showSettings, setShowSettings] = useState(false)
   const [profile, setProfile] = useState<any>(null)
   const [posts, setPosts] = useState<any[]>([])
+  const [likeCounts, setLikeCounts] = useState<Record<string, number>>({})
+  const [followersCount, setFollowersCount] = useState(0)
+  const [followingCount, setFollowingCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchProfile()
@@ -21,13 +25,13 @@ export default function ProfilePage() {
   const fetchProfile = async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
+    setUserId(session.user.id)
 
     const { data: profileData } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', session.user.id)
       .single()
-
     setProfile(profileData)
 
     const { data: postsData } = await supabase
@@ -35,8 +39,35 @@ export default function ProfilePage() {
       .select('*')
       .eq('user_id', session.user.id)
       .order('created_at', { ascending: false })
+    const postsArr = postsData || []
+    setPosts(postsArr)
 
-    setPosts(postsData || [])
+    if (postsArr.length > 0) {
+      const ids = postsArr.map((p: any) => p.id)
+      const { data: likesData } = await supabase
+        .from('likes')
+        .select('post_id')
+        .in('post_id', ids)
+      const counts: Record<string, number> = {}
+      ids.forEach((id: string) => counts[id] = 0)
+      likesData?.forEach((l: any) => {
+        counts[l.post_id] = (counts[l.post_id] || 0) + 1
+      })
+      setLikeCounts(counts)
+    }
+
+    const { count: followers } = await supabase
+      .from('follows')
+      .select('*', { count: 'exact', head: true })
+      .eq('following_id', session.user.id)
+
+    const { count: following } = await supabase
+      .from('follows')
+      .select('*', { count: 'exact', head: true })
+      .eq('follower_id', session.user.id)
+
+    setFollowersCount(followers || 0)
+    setFollowingCount(following || 0)
     setLoading(false)
   }
 
@@ -125,9 +156,7 @@ export default function ProfilePage() {
             }}>
               {profile?.avatar_url ? (
                 <img src={profile.avatar_url} style={{width:'100%', height:'100%', objectFit:'cover'}}/>
-              ) : (
-                profile?.username?.[0]?.toUpperCase() || '?'
-              )}
+              ) : profile?.username?.[0]?.toUpperCase() || '?'}
             </div>
             <div>
               <p style={{fontSize:'20px', fontWeight:700, color:'var(--text)'}}>
@@ -152,8 +181,8 @@ export default function ProfilePage() {
           }}>
             {[
               { label: 'Пости', value: posts.length },
-              { label: 'Підписники', value: '0' },
-              { label: 'Підписки', value: '0' },
+              { label: 'Підписники', value: followersCount },
+              { label: 'Підписки', value: followingCount },
             ].map(stat => (
               <div key={stat.label} style={{background:'var(--bg2)', padding:'14px', textAlign:'center'}}>
                 <p style={{fontSize:'18px', fontWeight:700, color:'var(--text)'}}>{stat.value}</p>
@@ -189,7 +218,7 @@ export default function ProfilePage() {
               <p style={{fontSize:'14px'}}>Ще немає постів</p>
             </div>
           ) : posts.map((post, i) => (
-            <div key={post.id} className={`post animate-fade-up delay-${i+1}`}
+            <div key={post.id} className={`post animate-fade-up delay-${Math.min(i+1,5)}`}
               style={{cursor:'pointer'}} onClick={() => router.push(`/post/${post.id}`)}>
               <div className="post-header">
                 <div style={{
@@ -200,9 +229,7 @@ export default function ProfilePage() {
                 }}>
                   {profile?.avatar_url ? (
                     <img src={profile.avatar_url} style={{width:'100%', height:'100%', objectFit:'cover'}}/>
-                  ) : (
-                    profile?.username?.[0]?.toUpperCase() || '?'
-                  )}
+                  ) : profile?.username?.[0]?.toUpperCase() || '?'}
                 </div>
                 <div>
                   <p className="username">{profile?.username || 'user'}</p>
@@ -215,7 +242,7 @@ export default function ProfilePage() {
               </div>
               <p className="post-text">{post.text}</p>
               <div className="post-actions">
-                <button className="action-btn" onClick={e => e.stopPropagation()}>❤️ {post.likes}</button>
+                <button className="action-btn" onClick={e => e.stopPropagation()}>❤️ {likeCounts[post.id] || 0}</button>
                 <button className="action-btn" onClick={e => e.stopPropagation()}>💬 {post.comments_count || 0}</button>
                 <button className="action-btn" onClick={e => e.stopPropagation()}>🔁 Поділитись</button>
               </div>
