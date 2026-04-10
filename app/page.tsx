@@ -44,7 +44,7 @@ export default function Home() {
     setLoading(true)
     let query = supabase
       .from('posts')
-      .select('*, profiles(username)')
+      .select('*, profiles(username, avatar_url)')
       .eq('room', activeRoom)
       .order('created_at', { ascending: false })
 
@@ -86,7 +86,6 @@ export default function Home() {
     if (!userId) return
 
     const isLiked = likedPosts.has(postId)
-
     if (isLiked) {
       await supabase.from('likes').delete().eq('post_id', postId).eq('user_id', userId)
       setLikedPosts(prev => { const s = new Set(prev); s.delete(postId); return s })
@@ -163,9 +162,27 @@ export default function Home() {
             <div key={post.id} className={`post animate-fade-up delay-${Math.min(i+1,5)}`}
               style={{cursor:'pointer'}} onClick={() => router.push(`/post/${post.id}`)}>
               <div className="post-header">
-                <div className={`avatar ${gradients[i % 5]}`} />
+                <div
+                  onClick={e => { e.stopPropagation(); router.push(`/user/${post.user_id}`) }}
+                  style={{
+                    width:'38px', height:'38px', borderRadius:'50%', flexShrink:0,
+                    background:'linear-gradient(135deg, #7c3aed, #ec4899)',
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    fontSize:'16px', fontWeight:700, color:'#fff',
+                    overflow:'hidden', cursor:'pointer'
+                  }}
+                >
+                  {post.profiles?.avatar_url ? (
+                    <img src={post.profiles.avatar_url} style={{width:'100%', height:'100%', objectFit:'cover'}}/>
+                  ) : (
+                    post.profiles?.username?.[0]?.toUpperCase() || '?'
+                  )}
+                </div>
                 <div>
-                  <p className="username">{post.profiles?.username || 'user'}</p>
+                  <p className="username" style={{cursor:'pointer'}}
+                    onClick={e => { e.stopPropagation(); router.push(`/user/${post.user_id}`) }}>
+                    {post.profiles?.username || 'user'}
+                  </p>
                   <div style={{display:'flex', alignItems:'center', gap:'6px'}}>
                     <p className="time">{timeAgo(post.created_at)}</p>
                     <span style={{color:'var(--text3)', fontSize:'11px'}}>·</span>
