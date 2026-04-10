@@ -26,27 +26,42 @@ export default function ConversationPage() {
   }, [otherId])
 
   useEffect(() => {
-    if (userId && otherId) {
-      fetchMessages()
-      const sub = supabase
-        .channel(`chat-${userId}-${otherId}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-        }, payload => {
-          const msg = payload.new as any
-          if (
-            (msg.sender_id === userId && msg.receiver_id === otherId) ||
-            (msg.sender_id === otherId && msg.receiver_id === userId)
-          ) {
-            setMessages(prev => [...prev, msg])
-            setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+    if (!userId || !otherId) return
+
+    fetchMessages()
+
+    const channel = supabase
+      .channel(`chat_${[userId, otherId].sort().join('_')}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+      }, async payload => {
+        const msg = payload.new as any
+        if (
+          (msg.sender_id === userId && msg.receiver_id === otherId) ||
+          (msg.sender_id === otherId && msg.receiver_id === userId)
+        ) {
+          setMessages(prev => [...prev, msg])
+          setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+
+          if (msg.sender_id === otherId) {
+            await supabase.from('messages').update({ read: true }).eq('id', msg.id)
+            setMessages(prev => prev.map(m => m.id === msg.id ? {...m, read: true} : m))
           }
-        })
-        .subscribe()
-      return () => { supabase.removeChannel(sub) }
-    }
+        }
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'messages',
+      }, payload => {
+        const msg = payload.new as any
+        setMessages(prev => prev.map(m => m.id === msg.id ? {...m, read: msg.read} : m))
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   }, [userId, otherId])
 
   const fetchOtherProfile = async () => {
@@ -73,17 +88,24 @@ export default function ConversationPage() {
       .update({ read: true })
       .eq('sender_id', otherId)
       .eq('receiver_id', userId)
+      .eq('read', false)
   }
 
   const handleSend = async () => {
     if (!newMessage.trim() || !userId) return
     const text = newMessage.trim()
     setNewMessage('')
-    await supabase.from('messages').insert({
+    const { data } = await supabase.from('messages').insert({
       sender_id: userId,
       receiver_id: otherId,
       text,
-    })
+      read: false,
+    }).select().single()
+
+    if (data) {
+      setMessages(prev => [...prev, data])
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+    }
   }
 
   const timeAgo = (date: string) => {
@@ -96,9 +118,21 @@ export default function ConversationPage() {
     return `${Math.floor(hours / 24)}д`
   }
 
+  const Checkmarks = ({ msg }: { msg: any }) => {
+    if (msg.sender_id !== userId) return null
+    return (
+      <span style={{fontSize:'11px', marginLeft:'4px'}}>
+        {msg.read ? (
+          <span style={{color:'#60a5fa'}}>✓✓</span>
+        ) : (
+          <span style={{color:'rgba(255,255,255,0.5)'}}>✓</span>
+        )}
+      </span>
+    )
+  }
+
   return (
     <main style={{background:'var(--bg)', minHeight:'100vh'}}>
-      {/* Хедер */}
       <div style={{
         position:'fixed', top:0, left:0, right:0, zIndex:100,
         background:'var(--bg)', borderBottom:'1px solid var(--border)',
@@ -116,11 +150,12 @@ export default function ConversationPage() {
           ) : otherProfile?.username?.[0]?.toUpperCase() || '?'}
         </div>
         <div>
-          <p style={{fontWeight:600, fontSize:'15px', color:'var(--text)', margin:0}}>{otherProfile?.username || 'user'}</p>
+          <p style={{fontWeight:600, fontSize:'15px', color:'var(--text)', margin:0}}>
+            {otherProfile?.username || 'user'}
+          </p>
         </div>
       </div>
 
-      {/* Повідомлення */}
       <div style={{
         maxWidth:'580px', margin:'0 auto',
         padding:'70px 16px 100px',
@@ -146,8 +181,15 @@ export default function ConversationPage() {
                 background: isMine ? 'var(--accent)' : 'var(--bg2)',
                 border: isMine ? 'none' : '1px solid var(--border)',
               }}>
-                <p style={{fontSize:'14px', color: isMine ? '#fff' : 'var(--text)', lineHeight:'1.4', margin:0}}>{msg.text}</p>
-                <p style={{fontSize:'10px', color: isMine ? 'rgba(255,255,255,0.6)' : 'var(--text3)', margin:'4px 0 0', textAlign:'right'}}>{timeAgo(msg.created_at)}</p>
+                <p style={{fontSize:'14px', color: isMine ? '#fff' : 'var(--text)', lineHeight:'1.4', margin:0}}>
+                  {msg.text}
+                </p>
+                <div style={{display:'flex', alignItems:'center', justifyContent:'flex-end', gap:'2px', marginTop:'4px'}}>
+                  <p style={{fontSize:'10px', color: isMine ? 'rgba(255,255,255,0.6)' : 'var(--text3)', margin:0}}>
+                    {timeAgo(msg.created_at)}
+                  </p>
+                  <Checkmarks msg={msg}/>
+                </div>
               </div>
             </div>
           )
@@ -155,7 +197,6 @@ export default function ConversationPage() {
         <div ref={bottomRef}/>
       </div>
 
-      {/* Поле вводу */}
       <div style={{
         position:'fixed', bottom:0, left:0, right:0, zIndex:200,
         background:'var(--bg)', borderTop:'1px solid var(--border)',
