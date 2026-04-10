@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
-import PageTransition from '../../components/PageTransition'
 
 export default function ConversationPage() {
   const router = useRouter()
@@ -23,16 +22,14 @@ export default function ConversationPage() {
   }, [])
 
   useEffect(() => {
-    if (otherId) {
-      fetchOtherProfile()
-    }
+    if (otherId) fetchOtherProfile()
   }, [otherId])
 
   useEffect(() => {
     if (userId && otherId) {
       fetchMessages()
       const sub = supabase
-        .channel('messages')
+        .channel(`chat-${userId}-${otherId}`)
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
@@ -82,7 +79,6 @@ export default function ConversationPage() {
     if (!newMessage.trim() || !userId) return
     const text = newMessage.trim()
     setNewMessage('')
-
     await supabase.from('messages').insert({
       sender_id: userId,
       receiver_id: otherId,
@@ -101,7 +97,8 @@ export default function ConversationPage() {
   }
 
   return (
-    <main>
+    <main style={{background:'var(--bg)', minHeight:'100vh'}}>
+      {/* Хедер */}
       <div style={{
         position:'fixed', top:0, left:0, right:0, zIndex:100,
         background:'var(--bg)', borderBottom:'1px solid var(--border)',
@@ -119,11 +116,16 @@ export default function ConversationPage() {
           ) : otherProfile?.username?.[0]?.toUpperCase() || '?'}
         </div>
         <div>
-          <p style={{fontWeight:600, fontSize:'15px', color:'var(--text)'}}>{otherProfile?.username || 'user'}</p>
+          <p style={{fontWeight:600, fontSize:'15px', color:'var(--text)', margin:0}}>{otherProfile?.username || 'user'}</p>
         </div>
       </div>
 
-      <div style={{maxWidth:'580px', margin:'0 auto', padding:'70px 16px 80px', display:'flex', flexDirection:'column', gap:'8px'}}>
+      {/* Повідомлення */}
+      <div style={{
+        maxWidth:'580px', margin:'0 auto',
+        padding:'70px 16px 100px',
+        display:'flex', flexDirection:'column', gap:'8px'
+      }}>
         {loading ? (
           <div style={{display:'flex', justifyContent:'center', marginTop:'60px'}}>
             <div style={{width:'32px', height:'32px', borderRadius:'50%', border:'3px solid #222', borderTop:'3px solid #7c3aed', animation:'spin 0.8s linear infinite'}}/>
@@ -134,12 +136,10 @@ export default function ConversationPage() {
             <p style={{fontSize:'32px', marginBottom:'12px'}}>👋</p>
             <p style={{fontSize:'14px'}}>Напиши першим!</p>
           </div>
-        ) : messages.map((msg) => {
+        ) : messages.map(msg => {
           const isMine = msg.sender_id === userId
           return (
-            <div key={msg.id} style={{
-              display:'flex', justifyContent: isMine ? 'flex-end' : 'flex-start'
-            }}>
+            <div key={msg.id} style={{display:'flex', justifyContent: isMine ? 'flex-end' : 'flex-start'}}>
               <div style={{
                 maxWidth:'72%', padding:'10px 14px',
                 borderRadius: isMine ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
@@ -155,10 +155,11 @@ export default function ConversationPage() {
         <div ref={bottomRef}/>
       </div>
 
+      {/* Поле вводу */}
       <div style={{
-        position:'fixed', bottom:0, left:0, right:0,
+        position:'fixed', bottom:0, left:0, right:0, zIndex:200,
         background:'var(--bg)', borderTop:'1px solid var(--border)',
-        padding:'12px 16px', display:'flex', gap:'10px', alignItems:'center'
+        padding:'12px 16px 32px', display:'flex', gap:'10px', alignItems:'center'
       }}>
         <input
           value={newMessage}
@@ -172,8 +173,10 @@ export default function ConversationPage() {
           }}
         />
         <button onClick={handleSend} style={{
-          background:'var(--accent)', border:'none', borderRadius:'999px',
-          padding:'10px 16px', color:'#fff', fontSize:'14px', cursor:'pointer'
+          background:'var(--accent)', border:'none', borderRadius:'50%',
+          width:'40px', height:'40px', color:'#fff', fontSize:'18px',
+          cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center',
+          flexShrink:0
         }}>↑</button>
       </div>
     </main>
