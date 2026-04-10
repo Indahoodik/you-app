@@ -42,12 +42,14 @@ export default function ConversationPage() {
           (msg.sender_id === userId && msg.receiver_id === otherId) ||
           (msg.sender_id === otherId && msg.receiver_id === userId)
         ) {
-          setMessages(prev => [...prev, msg])
+          setMessages(prev => {
+            if (prev.find(m => m.id === msg.id)) return prev
+            return [...prev, msg]
+          })
           setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
 
           if (msg.sender_id === otherId) {
             await supabase.from('messages').update({ read: true }).eq('id', msg.id)
-            setMessages(prev => prev.map(m => m.id === msg.id ? {...m, read: true} : m))
           }
         }
       })
@@ -95,17 +97,12 @@ export default function ConversationPage() {
     if (!newMessage.trim() || !userId) return
     const text = newMessage.trim()
     setNewMessage('')
-    const { data } = await supabase.from('messages').insert({
+    await supabase.from('messages').insert({
       sender_id: userId,
       receiver_id: otherId,
       text,
       read: false,
-    }).select().single()
-
-    if (data) {
-      setMessages(prev => [...prev, data])
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
-    }
+    })
   }
 
   const timeAgo = (date: string) => {
