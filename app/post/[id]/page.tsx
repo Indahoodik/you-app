@@ -4,8 +4,6 @@ import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import PageTransition from '../../components/PageTransition'
 
-const gradients = ['avatar-gradient-1', 'avatar-gradient-2', 'avatar-gradient-3', 'avatar-gradient-4', 'avatar-gradient-5']
-
 export default function PostPage() {
   const router = useRouter()
   const params = useParams()
@@ -17,11 +15,15 @@ export default function PostPage() {
   const [liked, setLiked] = useState(false)
   const [likesCount, setLikesCount] = useState(0)
   const [userId, setUserId] = useState<string | null>(null)
+  const [myProfile, setMyProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setUserId(session.user.id)
+      if (session) {
+        setUserId(session.user.id)
+        fetchMyProfile(session.user.id)
+      }
     })
   }, [])
 
@@ -36,10 +38,19 @@ export default function PostPage() {
     if (postId && userId) checkLike()
   }, [postId, userId])
 
+  const fetchMyProfile = async (uid: string) => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', uid)
+      .single()
+    setMyProfile(data)
+  }
+
   const fetchPost = async () => {
     const { data } = await supabase
       .from('posts')
-      .select('*, profiles(username)')
+      .select('*, profiles(username, avatar_url)')
       .eq('id', postId)
       .single()
     setPost(data)
@@ -55,7 +66,7 @@ export default function PostPage() {
   const fetchComments = async () => {
     const { data } = await supabase
       .from('comments')
-      .select('*, profiles(username)')
+      .select('*, profiles(username, avatar_url)')
       .eq('post_id', postId)
       .order('created_at', { ascending: true })
     setComments(data || [])
@@ -90,7 +101,7 @@ export default function PostPage() {
       post_id: postId,
       user_id: userId,
       text: newComment.trim()
-    }).select('*, profiles(username)').single()
+    }).select('*, profiles(username, avatar_url)').single()
 
     if (data) {
       setComments(prev => [...prev, data])
@@ -107,6 +118,19 @@ export default function PostPage() {
     if (hours < 24) return `${hours}год тому`
     return `${Math.floor(hours / 24)}д тому`
   }
+
+  const Avatar = ({ profile, size = 38 }: { profile: any, size?: number }) => (
+    <div style={{
+      width:`${size}px`, height:`${size}px`, borderRadius:'50%', flexShrink:0,
+      background:'linear-gradient(135deg, #7c3aed, #ec4899)',
+      display:'flex', alignItems:'center', justifyContent:'center',
+      fontSize:`${size * 0.4}px`, fontWeight:700, color:'#fff', overflow:'hidden'
+    }}>
+      {profile?.avatar_url ? (
+        <img src={profile.avatar_url} style={{width:'100%', height:'100%', objectFit:'cover'}}/>
+      ) : profile?.username?.[0]?.toUpperCase() || '?'}
+    </div>
+  )
 
   if (loading) return (
     <div style={{display:'flex', justifyContent:'center', alignItems:'center', minHeight:'100vh', background:'var(--bg)'}}>
@@ -131,9 +155,14 @@ export default function PostPage() {
           {post && (
             <div className="post" style={{marginBottom:'8px'}}>
               <div className="post-header">
-                <div className="avatar avatar-gradient-1"/>
+                <div onClick={() => router.push(`/user/${post.user_id}`)} style={{cursor:'pointer'}}>
+                  <Avatar profile={post.profiles} size={38}/>
+                </div>
                 <div>
-                  <p className="username">{post.profiles?.username || 'user'}</p>
+                  <p className="username" style={{cursor:'pointer'}}
+                    onClick={() => router.push(`/user/${post.user_id}`)}>
+                    {post.profiles?.username || 'user'}
+                  </p>
                   <div style={{display:'flex', gap:'6px', alignItems:'center'}}>
                     <p className="time">{timeAgo(post.created_at)}</p>
                     <span style={{color:'var(--text3)', fontSize:'11px'}}>·</span>
@@ -158,12 +187,17 @@ export default function PostPage() {
               <p style={{textAlign:'center', color:'var(--text3)', fontSize:'14px', marginTop:'32px'}}>
                 Коментарів поки немає. Будь першим!
               </p>
-            ) : comments.map((c, i) => (
+            ) : comments.map((c) => (
               <div key={c.id} style={{padding:'14px 0', borderBottom:'1px solid var(--border)'}}>
                 <div className="post-header" style={{marginBottom:'8px'}}>
-                  <div className={`avatar ${gradients[i % 5]}`} style={{width:'32px', height:'32px'}}/>
+                  <div onClick={() => router.push(`/user/${c.user_id}`)} style={{cursor:'pointer'}}>
+                    <Avatar profile={c.profiles} size={32}/>
+                  </div>
                   <div>
-                    <p className="username" style={{fontSize:'13px'}}>{c.profiles?.username || 'user'}</p>
+                    <p className="username" style={{fontSize:'13px', cursor:'pointer'}}
+                      onClick={() => router.push(`/user/${c.user_id}`)}>
+                      {c.profiles?.username || 'user'}
+                    </p>
                     <p className="time">{timeAgo(c.created_at)}</p>
                   </div>
                 </div>
@@ -178,7 +212,7 @@ export default function PostPage() {
           background:'var(--bg)', borderTop:'1px solid var(--border)',
           padding:'12px 16px', display:'flex', gap:'10px', alignItems:'center'
         }}>
-          <div className="avatar avatar-gradient-1" style={{width:'32px', height:'32px', flexShrink:0}}/>
+          <Avatar profile={myProfile} size={32}/>
           <input
             value={newComment}
             onChange={e => setNewComment(e.target.value)}

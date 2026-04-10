@@ -4,8 +4,6 @@ import { useRouter, useParams } from 'next/navigation'
 import PageTransition from '../../components/PageTransition'
 import { supabase } from '../../lib/supabase'
 
-const gradients = ['avatar-gradient-1', 'avatar-gradient-2', 'avatar-gradient-3', 'avatar-gradient-4', 'avatar-gradient-5']
-
 export default function UserProfilePage() {
   const router = useRouter()
   const params = useParams()
@@ -13,21 +11,18 @@ export default function UserProfilePage() {
 
   const [profile, setProfile] = useState<any>(null)
   const [posts, setPosts] = useState<any[]>([])
+  const [likeCounts, setLikeCounts] = useState<Record<string, number>>({})
   const [isFollowing, setIsFollowing] = useState(false)
   const [followersCount, setFollowersCount] = useState(0)
   const [followingCount, setFollowingCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const [isOwnProfile, setIsOwnProfile] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setCurrentUserId(session.user.id)
-        if (session.user.id === profileId) {
-          setIsOwnProfile(true)
-          router.push('/profile')
-        }
+        if (session.user.id === profileId) router.push('/profile')
       }
     })
   }, [profileId])
@@ -60,7 +55,22 @@ export default function UserProfilePage() {
       .select('*')
       .eq('user_id', profileId)
       .order('created_at', { ascending: false })
-    setPosts(data || [])
+    const postsData = data || []
+    setPosts(postsData)
+
+    if (postsData.length > 0) {
+      const ids = postsData.map((p: any) => p.id)
+      const { data: likesData } = await supabase
+        .from('likes')
+        .select('post_id')
+        .in('post_id', ids)
+      const counts: Record<string, number> = {}
+      ids.forEach((id: string) => counts[id] = 0)
+      likesData?.forEach((l: any) => {
+        counts[l.post_id] = (counts[l.post_id] || 0) + 1
+      })
+      setLikeCounts(counts)
+    }
   }
 
   const fetchFollowCounts = async () => {
@@ -68,12 +78,10 @@ export default function UserProfilePage() {
       .from('follows')
       .select('*', { count: 'exact', head: true })
       .eq('following_id', profileId)
-
     const { count: following } = await supabase
       .from('follows')
       .select('*', { count: 'exact', head: true })
       .eq('follower_id', profileId)
-
     setFollowersCount(followers || 0)
     setFollowingCount(following || 0)
   }
@@ -147,9 +155,7 @@ export default function UserProfilePage() {
             }}>
               {profile?.avatar_url ? (
                 <img src={profile.avatar_url} style={{width:'100%', height:'100%', objectFit:'cover'}}/>
-              ) : (
-                profile?.username?.[0]?.toUpperCase() || '?'
-              )}
+              ) : profile?.username?.[0]?.toUpperCase() || '?'}
             </div>
             <div style={{flex:1}}>
               <p style={{fontSize:'20px', fontWeight:700, color:'var(--text)'}}>
@@ -185,13 +191,21 @@ export default function UserProfilePage() {
           </div>
 
           <button onClick={handleFollow} style={{
-            width:'100%', padding:'12px', borderRadius:'12px', marginBottom:'24px',
+            width:'100%', padding:'12px', borderRadius:'12px', marginBottom:'12px',
             background: isFollowing ? 'none' : 'var(--accent)',
             border: isFollowing ? '1px solid var(--border)' : 'none',
             color: isFollowing ? 'var(--text)' : '#fff',
             fontSize:'15px', fontWeight:600, cursor:'pointer', transition:'all 0.2s'
           }}>
             {isFollowing ? 'Відписатись' : 'Підписатись'}
+          </button>
+
+          <button onClick={() => router.push(`/chat/${profileId}`)} style={{
+            width:'100%', padding:'12px', borderRadius:'12px', marginBottom:'24px',
+            background:'none', border:'1px solid var(--border)',
+            color:'var(--text)', fontSize:'15px', fontWeight:600, cursor:'pointer'
+          }}>
+            💬 Написати
           </button>
 
           {posts.length === 0 ? (
@@ -224,7 +238,7 @@ export default function UserProfilePage() {
               </div>
               <p className="post-text">{post.text}</p>
               <div className="post-actions">
-                <button className="action-btn" onClick={e => e.stopPropagation()}>❤️ {post.likes}</button>
+                <button className="action-btn" onClick={e => e.stopPropagation()}>❤️ {likeCounts[post.id] || 0}</button>
                 <button className="action-btn" onClick={e => e.stopPropagation()}>💬 {post.comments_count || 0}</button>
                 <button className="action-btn" onClick={e => e.stopPropagation()}>🔁 Поділитись</button>
               </div>
