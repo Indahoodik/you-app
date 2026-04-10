@@ -121,9 +121,13 @@ export default function ProfilePage() {
               width:'72px', height:'72px', borderRadius:'50%', flexShrink:0,
               background:'linear-gradient(135deg, #7c3aed, #ec4899)',
               display:'flex', alignItems:'center', justifyContent:'center',
-              fontSize:'28px', fontWeight:700, color:'#fff'
+              fontSize:'28px', fontWeight:700, color:'#fff', overflow:'hidden'
             }}>
-              {profile?.username?.[0]?.toUpperCase() || '?'}
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} style={{width:'100%', height:'100%', objectFit:'cover'}}/>
+              ) : (
+                profile?.username?.[0]?.toUpperCase() || '?'
+              )}
             </div>
             <div>
               <p style={{fontSize:'20px', fontWeight:700, color:'var(--text)'}}>
@@ -158,7 +162,7 @@ export default function ProfilePage() {
             ))}
           </div>
 
-          <button className="animate-fade-up delay-3" style={{
+          <button onClick={() => router.push('/edit-profile')} style={{
             width:'100%', padding:'10px', borderRadius:'10px',
             background:'none', border:'1px solid var(--border)', color:'var(--text)',
             fontSize:'14px', cursor:'pointer', marginBottom:'20px'
@@ -192,9 +196,13 @@ export default function ProfilePage() {
                   width:'38px', height:'38px', borderRadius:'50%', flexShrink:0,
                   background:'linear-gradient(135deg, #7c3aed, #ec4899)',
                   display:'flex', alignItems:'center', justifyContent:'center',
-                  fontSize:'16px', fontWeight:700, color:'#fff'
+                  fontSize:'16px', fontWeight:700, color:'#fff', overflow:'hidden'
                 }}>
-                  {profile?.username?.[0]?.toUpperCase() || '?'}
+                  {profile?.avatar_url ? (
+                    <img src={profile.avatar_url} style={{width:'100%', height:'100%', objectFit:'cover'}}/>
+                  ) : (
+                    profile?.username?.[0]?.toUpperCase() || '?'
+                  )}
                 </div>
                 <div>
                   <p className="username">{profile?.username || 'user'}</p>
