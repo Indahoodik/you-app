@@ -22,6 +22,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set())
+  const [likeCounts, setLikeCounts] = useState<Record<string, number>>({})
 
   const currentRoom = rooms.find(r => r.id === activeRoom)!
 
@@ -50,7 +51,24 @@ export default function Home() {
     if (activeSub !== 'Всі') query = query.eq('sub', activeSub)
 
     const { data } = await query
-    setPosts(data || [])
+    const postsData = data || []
+    setPosts(postsData)
+
+    if (postsData.length > 0) {
+      const ids = postsData.map((p: any) => p.id)
+      const { data: likesData } = await supabase
+        .from('likes')
+        .select('post_id')
+        .in('post_id', ids)
+
+      const counts: Record<string, number> = {}
+      ids.forEach((id: string) => counts[id] = 0)
+      likesData?.forEach((l: any) => {
+        counts[l.post_id] = (counts[l.post_id] || 0) + 1
+      })
+      setLikeCounts(counts)
+    }
+
     setLoading(false)
   }
 
@@ -63,22 +81,20 @@ export default function Home() {
     if (data) setLikedPosts(new Set(data.map((l: any) => l.post_id)))
   }
 
-  const handleLike = async (e: React.MouseEvent, post: any) => {
+  const handleLike = async (e: React.MouseEvent, postId: string) => {
     e.stopPropagation()
     if (!userId) return
 
-    const isLiked = likedPosts.has(post.id)
+    const isLiked = likedPosts.has(postId)
 
     if (isLiked) {
-      await supabase.from('likes').delete().eq('post_id', post.id).eq('user_id', userId)
-      await supabase.from('posts').update({ likes: post.likes - 1 }).eq('id', post.id)
-      setLikedPosts(prev => { const s = new Set(prev); s.delete(post.id); return s })
-      setPosts(prev => prev.map(p => p.id === post.id ? {...p, likes: p.likes - 1} : p))
+      await supabase.from('likes').delete().eq('post_id', postId).eq('user_id', userId)
+      setLikedPosts(prev => { const s = new Set(prev); s.delete(postId); return s })
+      setLikeCounts(prev => ({ ...prev, [postId]: Math.max((prev[postId] || 1) - 1, 0) }))
     } else {
-      await supabase.from('likes').insert({ post_id: post.id, user_id: userId })
-      await supabase.from('posts').update({ likes: post.likes + 1 }).eq('id', post.id)
-      setLikedPosts(prev => new Set([...prev, post.id]))
-      setPosts(prev => prev.map(p => p.id === post.id ? {...p, likes: p.likes + 1} : p))
+      await supabase.from('likes').insert({ post_id: postId, user_id: userId })
+      setLikedPosts(prev => new Set([...prev, postId]))
+      setLikeCounts(prev => ({ ...prev, [postId]: (prev[postId] || 0) + 1 }))
     }
   }
 
@@ -160,9 +176,9 @@ export default function Home() {
               <p className="post-text">{post.text}</p>
               <div className="post-actions">
                 <button className="action-btn"
-                  onClick={e => handleLike(e, post)}
+                  onClick={e => handleLike(e, post.id)}
                   style={{color: likedPosts.has(post.id) ? '#ec4899' : 'var(--text3)'}}>
-                  {likedPosts.has(post.id) ? '❤️' : '🤍'} {post.likes}
+                  {likedPosts.has(post.id) ? '❤️' : '🤍'} {likeCounts[post.id] || 0}
                 </button>
                 <button className="action-btn" onClick={e => { e.stopPropagation(); router.push(`/post/${post.id}`) }}>
                   💬 {post.comments_count || 0}
