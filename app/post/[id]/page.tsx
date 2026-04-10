@@ -4,6 +4,8 @@ import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import PageTransition from '../../components/PageTransition'
 
+const gradients = ['avatar-gradient-1', 'avatar-gradient-2', 'avatar-gradient-3', 'avatar-gradient-4', 'avatar-gradient-5']
+
 export default function PostPage() {
   const router = useRouter()
   const params = useParams()
@@ -16,8 +18,6 @@ export default function PostPage() {
   const [likesCount, setLikesCount] = useState(0)
   const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-
-  const gradients = ['avatar-gradient-1', 'avatar-gradient-2', 'avatar-gradient-3', 'avatar-gradient-4', 'avatar-gradient-5']
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -43,7 +43,12 @@ export default function PostPage() {
       .eq('id', postId)
       .single()
     setPost(data)
-    setLikesCount(data?.likes || 0)
+
+    const { count } = await supabase
+      .from('likes')
+      .select('*', { count: 'exact', head: true })
+      .eq('post_id', postId)
+    setLikesCount(count || 0)
     setLoading(false)
   }
 
@@ -70,12 +75,10 @@ export default function PostPage() {
     if (!userId) return
     if (liked) {
       await supabase.from('likes').delete().eq('post_id', postId).eq('user_id', userId)
-      await supabase.from('posts').update({ likes: likesCount - 1 }).eq('id', postId)
       setLiked(false)
-      setLikesCount(prev => prev - 1)
+      setLikesCount(prev => Math.max(prev - 1, 0))
     } else {
       await supabase.from('likes').insert({ post_id: postId, user_id: userId })
-      await supabase.from('posts').update({ likes: likesCount + 1 }).eq('id', postId)
       setLiked(true)
       setLikesCount(prev => prev + 1)
     }
@@ -140,7 +143,8 @@ export default function PostPage() {
               </div>
               <p style={{fontSize:'16px', color:'var(--text)', lineHeight:'1.6', marginBottom:'16px'}}>{post.text}</p>
               <div className="post-actions">
-                <button className="action-btn" onClick={handleLike} style={{color: liked ? '#ec4899' : 'var(--text3)'}}>
+                <button className="action-btn" onClick={handleLike}
+                  style={{color: liked ? '#ec4899' : 'var(--text3)'}}>
                   {liked ? '❤️' : '🤍'} {likesCount}
                 </button>
                 <button className="action-btn">💬 {comments.length}</button>
