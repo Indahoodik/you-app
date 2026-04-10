@@ -64,6 +64,9 @@ export default function ChatPage() {
           padding:'14px 16px'
         }}>
           <span style={{fontWeight:700, fontSize:'18px', color:'var(--text)'}}>Повідомлення</span>
+          <button
+            onClick={() => router.push('/search')}
+            style={{background:'none', border:'none', color:'var(--accent)', fontSize:'22px', cursor:'pointer'}}>✏️</button>
         </div>
 
         <div style={{maxWidth:'580px', margin:'0 auto', padding:'70px 16px 90px'}}>
@@ -76,10 +79,16 @@ export default function ChatPage() {
             <div style={{textAlign:'center', color:'var(--text3)', marginTop:'80px'}}>
               <p style={{fontSize:'32px', marginBottom:'12px'}}>💬</p>
               <p style={{fontSize:'14px'}}>Повідомлень поки немає</p>
-              <p style={{fontSize:'12px', marginTop:'4px'}}>Знайди когось цікавого і напиши першим!</p>
+              <p style={{fontSize:'12px', marginTop:'4px', marginBottom:'20px'}}>Знайди когось і напиши першим!</p>
+              <button onClick={() => router.push('/search')} style={{
+                padding:'10px 24px', borderRadius:'999px',
+                background:'var(--accent)', border:'none', color:'#fff',
+                fontSize:'14px', cursor:'pointer'
+              }}>Знайти людей</button>
             </div>
           ) : chats.map((chat, i) => (
-            <div key={chat.id} className={`animate-fade-up delay-${Math.min(i+1,5)}`}
+            <div key={chat.id}
+              className={`animate-fade-up delay-${Math.min(i+1,5)}`}
               onClick={() => router.push(`/chat/${chat.other?.id}`)}
               style={{
                 display:'flex', alignItems:'center', gap:'14px',
