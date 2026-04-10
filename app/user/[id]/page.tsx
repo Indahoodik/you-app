@@ -40,77 +40,53 @@ export default function UserProfilePage() {
   }, [currentUserId, profileId])
 
   const fetchProfile = async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', profileId)
-      .single()
+    const { data } = await supabase.from('profiles').select('*').eq('id', profileId).single()
     setProfile(data)
     setLoading(false)
   }
 
   const fetchPosts = async () => {
-    const { data } = await supabase
-      .from('posts')
-      .select('*')
-      .eq('user_id', profileId)
-      .order('created_at', { ascending: false })
-    const postsData = data || []
-    setPosts(postsData)
-
-    if (postsData.length > 0) {
-      const ids = postsData.map((p: any) => p.id)
-      const { data: likesData } = await supabase
-        .from('likes')
-        .select('post_id')
-        .in('post_id', ids)
+    const { data } = await supabase.from('posts').select('*').eq('user_id', profileId).order('created_at', { ascending: false })
+    const postsArr = data || []
+    setPosts(postsArr)
+    if (postsArr.length > 0) {
+      const ids = postsArr.map((p: any) => p.id)
+      const { data: likesData } = await supabase.from('likes').select('post_id').in('post_id', ids)
       const counts: Record<string, number> = {}
       ids.forEach((id: string) => counts[id] = 0)
-      likesData?.forEach((l: any) => {
-        counts[l.post_id] = (counts[l.post_id] || 0) + 1
-      })
+      likesData?.forEach((l: any) => { counts[l.post_id] = (counts[l.post_id] || 0) + 1 })
       setLikeCounts(counts)
     }
   }
 
   const fetchFollowCounts = async () => {
-    const { count: followers } = await supabase
-      .from('follows')
-      .select('*', { count: 'exact', head: true })
-      .eq('following_id', profileId)
-    const { count: following } = await supabase
-      .from('follows')
-      .select('*', { count: 'exact', head: true })
-      .eq('follower_id', profileId)
+    const { count: followers } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', profileId)
+    const { count: following } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', profileId)
     setFollowersCount(followers || 0)
     setFollowingCount(following || 0)
   }
 
   const checkFollow = async () => {
-    const { data } = await supabase
-      .from('follows')
-      .select('id')
-      .eq('follower_id', currentUserId)
-      .eq('following_id', profileId)
-      .single()
+    const { data } = await supabase.from('follows').select('id').eq('follower_id', currentUserId).eq('following_id', profileId).single()
     setIsFollowing(!!data)
   }
 
   const handleFollow = async () => {
     if (!currentUserId) return
     if (isFollowing) {
-      await supabase.from('follows').delete()
-        .eq('follower_id', currentUserId)
-        .eq('following_id', profileId)
+      await supabase.from('follows').delete().eq('follower_id', currentUserId).eq('following_id', profileId)
       setIsFollowing(false)
       setFollowersCount(prev => Math.max(prev - 1, 0))
     } else {
-      await supabase.from('follows').insert({
-        follower_id: currentUserId,
-        following_id: profileId
-      })
+      await supabase.from('follows').insert({ follower_id: currentUserId, following_id: profileId })
       setIsFollowing(true)
       setFollowersCount(prev => prev + 1)
+      await supabase.from('notifications').insert({
+        user_id: profileId,
+        actor_id: currentUserId,
+        type: 'follow',
+        post_id: null,
+      })
     }
   }
 
@@ -140,9 +116,7 @@ export default function UserProfilePage() {
           display:'flex', alignItems:'center', gap:'12px', padding:'14px 16px'
         }}>
           <button onClick={() => router.back()} style={{background:'none', border:'none', color:'var(--text)', fontSize:'20px', cursor:'pointer'}}>←</button>
-          <span style={{fontWeight:600, fontSize:'16px', color:'var(--text)'}}>
-            {profile?.username || 'Профіль'}
-          </span>
+          <span style={{fontWeight:600, fontSize:'16px', color:'var(--text)'}}>{profile?.username || 'Профіль'}</span>
         </div>
 
         <div style={{maxWidth:'580px', margin:'0 auto', padding:'70px 16px 90px'}}>
@@ -158,19 +132,13 @@ export default function UserProfilePage() {
               ) : profile?.username?.[0]?.toUpperCase() || '?'}
             </div>
             <div style={{flex:1}}>
-              <p style={{fontSize:'20px', fontWeight:700, color:'var(--text)'}}>
-                {profile?.username || 'user'}
-              </p>
-              <p style={{fontSize:'14px', color:'var(--text3)', marginTop:'2px'}}>
-                {profile?.city ? `🇺🇦 ${profile.city}` : '🇺🇦 Україна'}
-              </p>
+              <p style={{fontSize:'20px', fontWeight:700, color:'var(--text)'}}>{profile?.username || 'user'}</p>
+              <p style={{fontSize:'14px', color:'var(--text3)', marginTop:'2px'}}>{profile?.city ? `🇺🇦 ${profile.city}` : '🇺🇦 Україна'}</p>
             </div>
           </div>
 
           {profile?.bio && (
-            <p style={{fontSize:'14px', color:'var(--text2)', lineHeight:'1.5', marginBottom:'20px'}}>
-              {profile.bio}
-            </p>
+            <p style={{fontSize:'14px', color:'var(--text2)', lineHeight:'1.5', marginBottom:'20px'}}>{profile.bio}</p>
           )}
 
           <div className="animate-fade-up delay-1" style={{

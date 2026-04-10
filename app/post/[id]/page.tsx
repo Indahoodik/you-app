@@ -39,11 +39,7 @@ export default function PostPage() {
   }, [postId, userId])
 
   const fetchMyProfile = async (uid: string) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', uid)
-      .single()
+    const { data } = await supabase.from('profiles').select('*').eq('id', uid).single()
     setMyProfile(data)
   }
 
@@ -54,7 +50,6 @@ export default function PostPage() {
       .eq('id', postId)
       .single()
     setPost(data)
-
     const { count } = await supabase
       .from('likes')
       .select('*', { count: 'exact', head: true })
@@ -74,11 +69,8 @@ export default function PostPage() {
 
   const checkLike = async () => {
     const { data } = await supabase
-      .from('likes')
-      .select('id')
-      .eq('post_id', postId)
-      .eq('user_id', userId)
-      .single()
+      .from('likes').select('id')
+      .eq('post_id', postId).eq('user_id', userId).single()
     setLiked(!!data)
   }
 
@@ -92,6 +84,14 @@ export default function PostPage() {
       await supabase.from('likes').insert({ post_id: postId, user_id: userId })
       setLiked(true)
       setLikesCount(prev => prev + 1)
+      if (post.user_id !== userId) {
+        await supabase.from('notifications').insert({
+          user_id: post.user_id,
+          actor_id: userId,
+          type: 'like',
+          post_id: postId,
+        })
+      }
     }
   }
 
@@ -106,6 +106,14 @@ export default function PostPage() {
     if (data) {
       setComments(prev => [...prev, data])
       setNewComment('')
+      if (post.user_id !== userId) {
+        await supabase.from('notifications').insert({
+          user_id: post.user_id,
+          actor_id: userId,
+          type: 'comment',
+          post_id: postId,
+        })
+      }
     }
   }
 
@@ -172,8 +180,7 @@ export default function PostPage() {
               </div>
               <p style={{fontSize:'16px', color:'var(--text)', lineHeight:'1.6', marginBottom:'16px'}}>{post.text}</p>
               <div className="post-actions">
-                <button className="action-btn" onClick={handleLike}
-                  style={{color: liked ? '#ec4899' : 'var(--text3)'}}>
+                <button className="action-btn" onClick={handleLike} style={{color: liked ? '#ec4899' : 'var(--text3)'}}>
                   {liked ? '❤️' : '🤍'} {likesCount}
                 </button>
                 <button className="action-btn">💬 {comments.length}</button>
@@ -208,9 +215,9 @@ export default function PostPage() {
         </div>
 
         <div style={{
-          position:'fixed', bottom:0, left:0, right:0,
+          position:'fixed', bottom:0, left:0, right:0, zIndex:200,
           background:'var(--bg)', borderTop:'1px solid var(--border)',
-          padding:'12px 16px', display:'flex', gap:'10px', alignItems:'center'
+          padding:'12px 16px 32px', display:'flex', gap:'10px', alignItems:'center'
         }}>
           <Avatar profile={myProfile} size={32}/>
           <input

@@ -23,6 +23,7 @@ export default function Home() {
   const [userId, setUserId] = useState<string | null>(null)
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set())
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({})
+  const [unreadCount, setUnreadCount] = useState(0)
 
   const currentRoom = rooms.find(r => r.id === activeRoom)!
 
@@ -37,8 +38,34 @@ export default function Home() {
   }, [activeRoom, activeSub])
 
   useEffect(() => {
-    if (userId) fetchLikes()
+    if (userId) {
+      fetchLikes()
+      fetchUnreadNotifications()
+
+      const channel = supabase
+        .channel('notifications')
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`
+        }, () => {
+          setUnreadCount(prev => prev + 1)
+        })
+        .subscribe()
+
+      return () => { supabase.removeChannel(channel) }
+    }
   }, [userId])
+
+  const fetchUnreadNotifications = async () => {
+    const { count } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('read', false)
+    setUnreadCount(count || 0)
+  }
 
   const fetchPosts = async () => {
     setLoading(true)
@@ -60,7 +87,6 @@ export default function Home() {
         .from('likes')
         .select('post_id')
         .in('post_id', ids)
-
       const counts: Record<string, number> = {}
       ids.forEach((id: string) => counts[id] = 0)
       likesData?.forEach((l: any) => {
@@ -68,7 +94,6 @@ export default function Home() {
       })
       setLikeCounts(counts)
     }
-
     setLoading(false)
   }
 
@@ -81,19 +106,28 @@ export default function Home() {
     if (data) setLikedPosts(new Set(data.map((l: any) => l.post_id)))
   }
 
-  const handleLike = async (e: React.MouseEvent, postId: string) => {
+  const handleLike = async (e: React.MouseEvent, post: any) => {
     e.stopPropagation()
     if (!userId) return
 
-    const isLiked = likedPosts.has(postId)
+    const isLiked = likedPosts.has(post.id)
     if (isLiked) {
-      await supabase.from('likes').delete().eq('post_id', postId).eq('user_id', userId)
-      setLikedPosts(prev => { const s = new Set(prev); s.delete(postId); return s })
-      setLikeCounts(prev => ({ ...prev, [postId]: Math.max((prev[postId] || 1) - 1, 0) }))
+      await supabase.from('likes').delete().eq('post_id', post.id).eq('user_id', userId)
+      setLikedPosts(prev => { const s = new Set(prev); s.delete(post.id); return s })
+      setLikeCounts(prev => ({ ...prev, [post.id]: Math.max((prev[post.id] || 1) - 1, 0) }))
     } else {
-      await supabase.from('likes').insert({ post_id: postId, user_id: userId })
-      setLikedPosts(prev => new Set([...prev, postId]))
-      setLikeCounts(prev => ({ ...prev, [postId]: (prev[postId] || 0) + 1 }))
+      await supabase.from('likes').insert({ post_id: post.id, user_id: userId })
+      setLikedPosts(prev => new Set([...prev, post.id]))
+      setLikeCounts(prev => ({ ...prev, [post.id]: (prev[post.id] || 0) + 1 }))
+
+      if (post.user_id !== userId) {
+        await supabase.from('notifications').insert({
+          user_id: post.user_id,
+          actor_id: userId,
+          type: 'like',
+          post_id: post.id,
+        })
+      }
     }
   }
 
@@ -113,7 +147,19 @@ export default function Home() {
         <div className="header">
           <div className="header-top">
             <span className="logo">YOU</span>
-            <button style={{background:'none', border:'none', color:'var(--text)', fontSize:'20px', cursor:'pointer'}}>🔔</button>
+            <button
+              onClick={() => router.push('/notifications')}
+              style={{background:'none', border:'none', color:'var(--text)', fontSize:'20px', cursor:'pointer', position:'relative'}}>
+              🔔
+              {unreadCount > 0 && (
+                <span style={{
+                  position:'absolute', top:'-4px', right:'-4px',
+                  width:'18px', height:'18px', borderRadius:'50%',
+                  background:'#ef4444', fontSize:'10px', fontWeight:700,
+                  color:'#fff', display:'flex', alignItems:'center', justifyContent:'center'
+                }}>{unreadCount > 9 ? '9+' : unreadCount}</span>
+              )}
+            </button>
           </div>
           <div className="header-rooms">
             {rooms.map(room => (
@@ -140,11 +186,7 @@ export default function Home() {
         <div className="feed" style={{paddingTop:'140px', paddingBottom:'90px'}}>
           {loading ? (
             <div style={{display:'flex', justifyContent:'center', marginTop:'60px'}}>
-              <div style={{
-                width:'32px', height:'32px', borderRadius:'50%',
-                border:'3px solid #222', borderTop:'3px solid #7c3aed',
-                animation:'spin 0.8s linear infinite'
-              }}/>
+              <div style={{width:'32px', height:'32px', borderRadius:'50%', border:'3px solid #222', borderTop:'3px solid #7c3aed', animation:'spin 0.8s linear infinite'}}/>
               <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
             </div>
           ) : posts.length === 0 ? (
@@ -168,15 +210,11 @@ export default function Home() {
                     width:'38px', height:'38px', borderRadius:'50%', flexShrink:0,
                     background:'linear-gradient(135deg, #7c3aed, #ec4899)',
                     display:'flex', alignItems:'center', justifyContent:'center',
-                    fontSize:'16px', fontWeight:700, color:'#fff',
-                    overflow:'hidden', cursor:'pointer'
-                  }}
-                >
+                    fontSize:'16px', fontWeight:700, color:'#fff', overflow:'hidden', cursor:'pointer'
+                  }}>
                   {post.profiles?.avatar_url ? (
                     <img src={post.profiles.avatar_url} style={{width:'100%', height:'100%', objectFit:'cover'}}/>
-                  ) : (
-                    post.profiles?.username?.[0]?.toUpperCase() || '?'
-                  )}
+                  ) : post.profiles?.username?.[0]?.toUpperCase() || '?'}
                 </div>
                 <div>
                   <p className="username" style={{cursor:'pointer'}}
@@ -193,7 +231,7 @@ export default function Home() {
               <p className="post-text">{post.text}</p>
               <div className="post-actions">
                 <button className="action-btn"
-                  onClick={e => handleLike(e, post.id)}
+                  onClick={e => handleLike(e, post)}
                   style={{color: likedPosts.has(post.id) ? '#ec4899' : 'var(--text3)'}}>
                   {likedPosts.has(post.id) ? '❤️' : '🤍'} {likeCounts[post.id] || 0}
                 </button>
