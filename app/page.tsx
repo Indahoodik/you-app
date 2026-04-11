@@ -170,11 +170,7 @@ export default function Home() {
         <div className="feed" style={{paddingTop:'140px', paddingBottom:'90px'}}>
           {loading ? (
             <div style={{display:'flex', justifyContent:'center', marginTop:'60px'}}>
-              <div style={{
-                width:'32px', height:'32px', borderRadius:'50%',
-                border:'3px solid #222', borderTop:'3px solid #7c3aed',
-                animation:'spin 0.8s linear infinite'
-              }}/>
+              <div style={{width:'32px', height:'32px', borderRadius:'50%', border:'3px solid #222', borderTop:'3px solid #7c3aed', animation:'spin 0.8s linear infinite'}}/>
               <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
             </div>
           ) : posts.length === 0 ? (
@@ -189,12 +185,8 @@ export default function Home() {
               }}>Написати пост</button>
             </div>
           ) : posts.map((post, i) => (
-            <div
-              key={post.id}
-              className={`post animate-fade-up delay-${Math.min(i+1,5)}`}
-              style={{cursor:'pointer'}}
-              onClick={() => router.push(`/post/${post.id}`)}
-            >
+            <div key={post.id} className={`post animate-fade-up delay-${Math.min(i+1,5)}`}
+              style={{cursor:'pointer'}} onClick={() => router.push(`/post/${post.id}`)}>
               <div className="post-header">
                 <div
                   onClick={e => { e.stopPropagation(); router.push(`/user/${post.user_id}`) }}
@@ -203,18 +195,14 @@ export default function Home() {
                     background:'linear-gradient(135deg, #7c3aed, #ec4899)',
                     display:'flex', alignItems:'center', justifyContent:'center',
                     fontSize:'16px', fontWeight:700, color:'#fff', overflow:'hidden', cursor:'pointer'
-                  }}
-                >
+                  }}>
                   {post.profiles?.avatar_url ? (
                     <img src={post.profiles.avatar_url} style={{width:'100%', height:'100%', objectFit:'cover'}}/>
                   ) : post.profiles?.username?.[0]?.toUpperCase() || '?'}
                 </div>
                 <div>
-                  <p
-                    className="username"
-                    style={{cursor:'pointer'}}
-                    onClick={e => { e.stopPropagation(); router.push(`/user/${post.user_id}`) }}
-                  >
+                  <p className="username" style={{cursor:'pointer'}}
+                    onClick={e => { e.stopPropagation(); router.push(`/user/${post.user_id}`) }}>
                     {post.profiles?.username || 'user'}
                   </p>
                   <div style={{display:'flex', alignItems:'center', gap:'6px'}}>
@@ -224,35 +212,22 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-
               <p className="post-text">{post.text}</p>
-
               {post.image_url && (
-                <div style={{borderRadius:'12px', overflow:'hidden', marginBottom:'12px'}}>
-                  <img
-                    src={post.image_url}
-                    style={{width:'100%', maxHeight:'300px', objectFit:'cover'}}
-                  />
+                <div style={{borderRadius:'12px', overflow:'hidden', marginBottom:'12px', background:'var(--bg3)'}}>
+                  <img src={post.image_url} style={{width:'100%', maxHeight:'500px', objectFit:'contain', display:'block'}}/>
                 </div>
               )}
-
               <div className="post-actions">
-                <button
-                  className="action-btn"
+                <button className="action-btn"
                   onClick={e => handleLike(e, post)}
-                  style={{color: likedPosts.has(post.id) ? '#ec4899' : 'var(--text3)'}}
-                >
+                  style={{color: likedPosts.has(post.id) ? '#ec4899' : 'var(--text3)'}}>
                   {likedPosts.has(post.id) ? '❤️' : '🤍'} {likeCounts[post.id] || 0}
                 </button>
-                <button
-                  className="action-btn"
-                  onClick={e => { e.stopPropagation(); router.push(`/post/${post.id}`) }}
-                >
+                <button className="action-btn" onClick={e => { e.stopPropagation(); router.push(`/post/${post.id}`) }}>
                   💬 {post.comments_count || 0}
                 </button>
-                <button className="action-btn" onClick={e => e.stopPropagation()}>
-                  🔁 Поділитись
-                </button>
+                <button className="action-btn" onClick={e => e.stopPropagation()}>🔁 Поділитись</button>
               </div>
             </div>
           ))}

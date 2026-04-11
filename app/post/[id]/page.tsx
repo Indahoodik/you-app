@@ -154,8 +154,8 @@ export default function PostPage() {
               </div>
               <p style={{fontSize:'16px', color:'var(--text)', lineHeight:'1.6', marginBottom:'12px'}}>{post.text}</p>
               {post.image_url && (
-                <div style={{borderRadius:'12px', overflow:'hidden', marginBottom:'12px'}}>
-                  <img src={post.image_url} style={{width:'100%', maxHeight:'400px', objectFit:'cover'}}/>
+                <div style={{borderRadius:'12px', overflow:'hidden', marginBottom:'12px', background:'var(--bg3)'}}>
+                  <img src={post.image_url} style={{width:'100%', maxHeight:'500px', objectFit:'contain', display:'block'}}/>
                 </div>
               )}
               <div className="post-actions">
