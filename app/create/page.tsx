@@ -38,19 +38,33 @@ export default function CreatePage() {
     if (!file || !userId) return
     setImagePreview(URL.createObjectURL(file))
     setUploading(true)
+    setImageUrl('')
+
     const fileExt = file.name.split('.').pop()
     const filePath = `${userId}/${Date.now()}.${fileExt}`
-    const { error } = await supabase.storage.from('posts').upload(filePath, file)
+
+    const { error, data } = await supabase.storage
+      .from('posts')
+      .upload(filePath, file, { upsert: true })
+
     if (!error) {
-      const { data } = supabase.storage.from('posts').getPublicUrl(filePath)
-      setImageUrl(data.publicUrl)
+      const { data: urlData } = supabase.storage.from('posts').getPublicUrl(filePath)
+      setImageUrl(urlData.publicUrl)
+    } else {
+      alert('Помилка завантаження фото: ' + error.message)
+      setImagePreview('')
     }
     setUploading(false)
   }
 
   const handlePost = async () => {
     if (!canPost || !userId) return
+    if (imagePreview && !imageUrl) {
+      alert('Зачекай поки фото завантажиться...')
+      return
+    }
     setLoading(true)
+
     const { error } = await supabase.from('posts').insert({
       user_id: userId,
       text: text.trim(),
@@ -58,6 +72,7 @@ export default function CreatePage() {
       sub: selectedSub,
       image_url: imageUrl || null,
     })
+
     if (!error) {
       router.push('/')
     } else {
@@ -77,13 +92,19 @@ export default function CreatePage() {
         }}>
           <button onClick={() => router.back()} style={{background:'none', border:'none', color:'var(--text)', fontSize:'20px', cursor:'pointer'}}>✕</button>
           <span style={{fontWeight:600, fontSize:'16px', color:'var(--text)'}}>Новий пост</span>
-          <button onClick={handlePost} disabled={!canPost || loading} style={{
-            background: canPost ? 'var(--accent)' : 'var(--bg3)',
-            border:'none', borderRadius:'999px', padding:'8px 18px',
-            color: canPost ? '#fff' : 'var(--text3)',
-            fontSize:'14px', fontWeight:600, cursor: canPost ? 'pointer' : 'default',
-            transition:'all 0.2s'
-          }}>{loading ? '...' : 'Опублікувати'}</button>
+          <button
+            onClick={handlePost}
+            disabled={!canPost || loading || uploading}
+            style={{
+              background: canPost && !uploading ? 'var(--accent)' : 'var(--bg3)',
+              border:'none', borderRadius:'999px', padding:'8px 18px',
+              color: canPost && !uploading ? '#fff' : 'var(--text3)',
+              fontSize:'14px', fontWeight:600,
+              cursor: canPost && !uploading ? 'pointer' : 'default',
+              transition:'all 0.2s'
+            }}>
+            {loading ? '...' : uploading ? 'Завантаження...' : 'Опублікувати'}
+          </button>
         </div>
 
         <div style={{maxWidth:'580px', margin:'0 auto', padding:'70px 16px 90px'}}>
@@ -106,8 +127,11 @@ export default function CreatePage() {
           </div>
 
           {imagePreview && (
-            <div style={{position:'relative', marginBottom:'16px', borderRadius:'12px', overflow:'hidden'}}>
-              <img src={imagePreview} style={{width:'100%', maxHeight:'300px', objectFit:'cover'}}/>
+            <div style={{position:'relative', marginBottom:'16px', borderRadius:'12px', overflow:'hidden', background:'var(--bg3)'}}>
+              <img
+                src={imagePreview}
+                style={{width:'100%', maxHeight:'400px', objectFit:'contain', display:'block'}}
+              />
               <button
                 onClick={() => { setImagePreview(''); setImageUrl('') }}
                 style={{
@@ -118,10 +142,11 @@ export default function CreatePage() {
               {uploading && (
                 <div style={{
                   position:'absolute', inset:0, background:'rgba(0,0,0,0.5)',
-                  display:'flex', alignItems:'center', justifyContent:'center'
+                  display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:'8px'
                 }}>
                   <div style={{width:'24px', height:'24px', borderRadius:'50%', border:'2px solid #fff', borderTop:'2px solid transparent', animation:'spin 0.8s linear infinite'}}/>
                   <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+                  <p style={{color:'#fff', fontSize:'12px'}}>Завантаження...</p>
                 </div>
               )}
             </div>
