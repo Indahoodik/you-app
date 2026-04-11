@@ -41,9 +41,8 @@ export default function Home() {
     if (userId) {
       fetchLikes()
       fetchUnreadNotifications()
-
       const channel = supabase
-        .channel('notifications')
+        .channel('notifications_feed')
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
@@ -53,7 +52,6 @@ export default function Home() {
           setUnreadCount(prev => prev + 1)
         })
         .subscribe()
-
       return () => { supabase.removeChannel(channel) }
     }
   }, [userId])
@@ -84,14 +82,10 @@ export default function Home() {
     if (postsData.length > 0) {
       const ids = postsData.map((p: any) => p.id)
       const { data: likesData } = await supabase
-        .from('likes')
-        .select('post_id')
-        .in('post_id', ids)
+        .from('likes').select('post_id').in('post_id', ids)
       const counts: Record<string, number> = {}
       ids.forEach((id: string) => counts[id] = 0)
-      likesData?.forEach((l: any) => {
-        counts[l.post_id] = (counts[l.post_id] || 0) + 1
-      })
+      likesData?.forEach((l: any) => { counts[l.post_id] = (counts[l.post_id] || 0) + 1 })
       setLikeCounts(counts)
     }
     setLoading(false)
@@ -99,17 +93,13 @@ export default function Home() {
 
   const fetchLikes = async () => {
     if (!userId) return
-    const { data } = await supabase
-      .from('likes')
-      .select('post_id')
-      .eq('user_id', userId)
+    const { data } = await supabase.from('likes').select('post_id').eq('user_id', userId)
     if (data) setLikedPosts(new Set(data.map((l: any) => l.post_id)))
   }
 
   const handleLike = async (e: React.MouseEvent, post: any) => {
     e.stopPropagation()
     if (!userId) return
-
     const isLiked = likedPosts.has(post.id)
     if (isLiked) {
       await supabase.from('likes').delete().eq('post_id', post.id).eq('user_id', userId)
@@ -119,13 +109,9 @@ export default function Home() {
       await supabase.from('likes').insert({ post_id: post.id, user_id: userId })
       setLikedPosts(prev => new Set([...prev, post.id]))
       setLikeCounts(prev => ({ ...prev, [post.id]: (prev[post.id] || 0) + 1 }))
-
       if (post.user_id !== userId) {
         await supabase.from('notifications').insert({
-          user_id: post.user_id,
-          actor_id: userId,
-          type: 'like',
-          post_id: post.id,
+          user_id: post.user_id, actor_id: userId, type: 'like', post_id: post.id,
         })
       }
     }
@@ -229,21 +215,15 @@ export default function Home() {
                 </div>
               </div>
               <p className="post-text">{post.text}</p>
+              {post.image_url && (
+                <div style={{borderRadius:'12px', overflow:'hidden', marginBottom:'12px'}}>
+                  <img src={post.image_url} style={{width:'100%', maxHeight:'300px', objectFit:'cover'}}/>
+                </div>
+              )}
               <div className="post-actions">
                 <button className="action-btn"
                   onClick={e => handleLike(e, post)}
                   style={{color: likedPosts.has(post.id) ? '#ec4899' : 'var(--text3)'}}>
                   {likedPosts.has(post.id) ? '❤️' : '🤍'} {likeCounts[post.id] || 0}
                 </button>
-                <button className="action-btn" onClick={e => { e.stopPropagation(); router.push(`/post/${post.id}`) }}>
-                  💬 {post.comments_count || 0}
-                </button>
-                <button className="action-btn" onClick={e => e.stopPropagation()}>🔁 Поділитись</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </main>
-    </PageTransition>
-  )
-}
+                <button className="action-btn" onClick={e => { e.st

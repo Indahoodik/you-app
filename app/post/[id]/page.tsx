@@ -20,18 +20,12 @@ export default function PostPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setUserId(session.user.id)
-        fetchMyProfile(session.user.id)
-      }
+      if (session) { setUserId(session.user.id); fetchMyProfile(session.user.id) }
     })
   }, [])
 
   useEffect(() => {
-    if (postId) {
-      fetchPost()
-      fetchComments()
-    }
+    if (postId) { fetchPost(); fetchComments() }
   }, [postId])
 
   useEffect(() => {
@@ -45,32 +39,22 @@ export default function PostPage() {
 
   const fetchPost = async () => {
     const { data } = await supabase
-      .from('posts')
-      .select('*, profiles(username, avatar_url)')
-      .eq('id', postId)
-      .single()
+      .from('posts').select('*, profiles(username, avatar_url)').eq('id', postId).single()
     setPost(data)
-    const { count } = await supabase
-      .from('likes')
-      .select('*', { count: 'exact', head: true })
-      .eq('post_id', postId)
+    const { count } = await supabase.from('likes').select('*', { count: 'exact', head: true }).eq('post_id', postId)
     setLikesCount(count || 0)
     setLoading(false)
   }
 
   const fetchComments = async () => {
     const { data } = await supabase
-      .from('comments')
-      .select('*, profiles(username, avatar_url)')
-      .eq('post_id', postId)
-      .order('created_at', { ascending: true })
+      .from('comments').select('*, profiles(username, avatar_url)')
+      .eq('post_id', postId).order('created_at', { ascending: true })
     setComments(data || [])
   }
 
   const checkLike = async () => {
-    const { data } = await supabase
-      .from('likes').select('id')
-      .eq('post_id', postId).eq('user_id', userId).single()
+    const { data } = await supabase.from('likes').select('id').eq('post_id', postId).eq('user_id', userId).single()
     setLiked(!!data)
   }
 
@@ -86,10 +70,7 @@ export default function PostPage() {
       setLikesCount(prev => prev + 1)
       if (post.user_id !== userId) {
         await supabase.from('notifications').insert({
-          user_id: post.user_id,
-          actor_id: userId,
-          type: 'like',
-          post_id: postId,
+          user_id: post.user_id, actor_id: userId, type: 'like', post_id: postId,
         })
       }
     }
@@ -98,20 +79,14 @@ export default function PostPage() {
   const handleComment = async () => {
     if (!newComment.trim() || !userId) return
     const { data } = await supabase.from('comments').insert({
-      post_id: postId,
-      user_id: userId,
-      text: newComment.trim()
+      post_id: postId, user_id: userId, text: newComment.trim()
     }).select('*, profiles(username, avatar_url)').single()
-
     if (data) {
       setComments(prev => [...prev, data])
       setNewComment('')
       if (post.user_id !== userId) {
         await supabase.from('notifications').insert({
-          user_id: post.user_id,
-          actor_id: userId,
-          type: 'comment',
-          post_id: postId,
+          user_id: post.user_id, actor_id: userId, type: 'comment', post_id: postId,
         })
       }
     }
@@ -167,8 +142,7 @@ export default function PostPage() {
                   <Avatar profile={post.profiles} size={38}/>
                 </div>
                 <div>
-                  <p className="username" style={{cursor:'pointer'}}
-                    onClick={() => router.push(`/user/${post.user_id}`)}>
+                  <p className="username" style={{cursor:'pointer'}} onClick={() => router.push(`/user/${post.user_id}`)}>
                     {post.profiles?.username || 'user'}
                   </p>
                   <div style={{display:'flex', gap:'6px', alignItems:'center'}}>
@@ -178,7 +152,12 @@ export default function PostPage() {
                   </div>
                 </div>
               </div>
-              <p style={{fontSize:'16px', color:'var(--text)', lineHeight:'1.6', marginBottom:'16px'}}>{post.text}</p>
+              <p style={{fontSize:'16px', color:'var(--text)', lineHeight:'1.6', marginBottom:'12px'}}>{post.text}</p>
+              {post.image_url && (
+                <div style={{borderRadius:'12px', overflow:'hidden', marginBottom:'12px'}}>
+                  <img src={post.image_url} style={{width:'100%', maxHeight:'400px', objectFit:'cover'}}/>
+                </div>
+              )}
               <div className="post-actions">
                 <button className="action-btn" onClick={handleLike} style={{color: liked ? '#ec4899' : 'var(--text3)'}}>
                   {liked ? '❤️' : '🤍'} {likesCount}
@@ -194,15 +173,14 @@ export default function PostPage() {
               <p style={{textAlign:'center', color:'var(--text3)', fontSize:'14px', marginTop:'32px'}}>
                 Коментарів поки немає. Будь першим!
               </p>
-            ) : comments.map((c) => (
+            ) : comments.map(c => (
               <div key={c.id} style={{padding:'14px 0', borderBottom:'1px solid var(--border)'}}>
                 <div className="post-header" style={{marginBottom:'8px'}}>
                   <div onClick={() => router.push(`/user/${c.user_id}`)} style={{cursor:'pointer'}}>
                     <Avatar profile={c.profiles} size={32}/>
                   </div>
                   <div>
-                    <p className="username" style={{fontSize:'13px', cursor:'pointer'}}
-                      onClick={() => router.push(`/user/${c.user_id}`)}>
+                    <p className="username" style={{fontSize:'13px', cursor:'pointer'}} onClick={() => router.push(`/user/${c.user_id}`)}>
                       {c.profiles?.username || 'user'}
                     </p>
                     <p className="time">{timeAgo(c.created_at)}</p>
